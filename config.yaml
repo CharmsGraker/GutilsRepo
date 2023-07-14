@@ -1,12 +1,26 @@
 # hydra 特性
 # key是文件夹名字, value是配置名字
 defaults:
+  # 此处注入其他yaml模块
   - backbone: resnet
   - _self_
 log:
 models:
-  LaAA: # 自定义模型名称
+  exampleModelA: # 自定义模型名称
+    target: Gutils.dummy.D # 可以是类名，可以是一个构造某个对象的函数，也可以用kind代替target
+    params: # 按字典方式定义参数
+      n_layer: 1
+      channel_in: 32
+      channel_out: ${models.exampleModelA.params.channel_in} # OmegaConf特性， 变量插值
+  exampleModelB: # 自定义模型名称
     target: Gutils.dummy.D # 可以是类名，可以是一个构造某个对象的函数
     params: # 按字典方式定义参数
-      a: 1
-      b: ${models.LaAA.params.a} # OmegaConf特性， 变量插值
+      n_blocks: 5
+      backbone:
+        kind: A.B.C # 包路径
+        checkpoint: # 传入pretrained-model的路径
+          ckpt_path:
+          strict: True # 同torch.load_state_dict中的strict含义
+          # 更多参数可以查看Gutils.io.load_model方法
+        params:
+          out_dim: 512

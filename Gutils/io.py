@@ -1,4 +1,5 @@
 import base64
+
 import PIL
 
 import io
@@ -10,6 +11,7 @@ import torch.nn as nn
 from omegaconf import OmegaConf, DictConfig
 
 from Gutils.annot import AutoInjectConfigParams, StrictType
+from Gutils.config import GDict
 
 
 def find_class(location: str):
@@ -67,10 +69,10 @@ def save_ckpt(ckpt_name, models, optimizers=None, n_iter=0):
 
 
 @AutoInjectConfigParams(suppressRedundantParams=True)
-def load_checkpoint(ckpt_name, model, map_location="cuda", name_mapping=None, model_key=None,
-                    strict=True, ignore_not_exist=False):
-    assert isinstance(model, nn.Module)
+def load_checkpoint(ckpt_name: str, model: nn.Module, map_location="cuda", name_mapping=None, model_key=None,
+                    strict=True):
     if os.path.isdir(ckpt_name):
+        # 如果提供的是文件夹，读取排序最大的一个，一般来说都是step最大的那个
         ckpt_files = os.listdir(ckpt_name)
         assert ckpt_files is not None
         ckpt_files.sort(key=lambda x: int(os.path.splitext(x)[0]))
@@ -98,7 +100,7 @@ def load_checkpoint(ckpt_name, model, map_location="cuda", name_mapping=None, mo
                     new_ckpt_dict[new_k] = v
                     need_replace = True
                     break
-
+            # TODO: 可以只是更新state_dict，而不是只加载name_mapping中的state_dict
         state_dict = new_ckpt_dict
     model.load_state_dict(state_dict, strict=strict)
 
@@ -144,18 +146,21 @@ def default(vdict, key, default_value):
     return default_value
 
 
-def load_model(model: nn.Module, model_config: DictConfig):
-    default_ckpt_load_conf = OmegaConf.create(
-        {
-            'model': model,
-            'model_key': None,
-            'name_mapping': None,
-            'strict': False,
-            'ignore_not_exist': False
-        }
-    )
-    model_config = OmegaConf.merge(default_ckpt_load_conf, model_config)
-    ckpt_path = model_config.weight_path
+@StrictType
+def load_model(model: nn.Module, model_config=None):
+    default_ckpt_load_conf: GDict = GDict({
+        'model_key': None,
+        'name_mapping': None,
+        'strict': False,
+        'ignore_not_exist': False,
+        'model': model,
+        'ckpt_path': None
+    })
+    if model_config is None:
+        model_config = GDict()
+    default_ckpt_load_conf.update(model_config)
+    model_config = default_ckpt_load_conf
+    ckpt_path = model_config.ckpt_path
     if not os.path.isabs(ckpt_path):
         model_config.update({
             'ckpt_path': os.path.join(model_config.ckpt_folder, ckpt_path)
