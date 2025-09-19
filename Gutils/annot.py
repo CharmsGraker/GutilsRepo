@@ -79,5 +79,52 @@ def AutoInjectConfigParams(suppressRedundantParams=True):
     return decorate
 
 
+def suppress_kwargs_redundant():
+    def decorate(f):
+        @functools.wraps(f)
+        def deco(*args, **kwargs):
+            signature = inspect.signature(f)
+
+            if kwargs is not None:
+                inject_var_args = ()
+                arg_ptr = 0
+                inject_kwargs = kwargs
+                sig_params = signature.parameters
+
+                # remove all unwanted params
+                _tmp_kwargs = copy.deepcopy(inject_kwargs)
+                for k, v in inject_kwargs.items():
+                    if k not in sig_params:
+                        del _tmp_kwargs[k]
+                inject_kwargs = _tmp_kwargs
+                inject_var_kwargs = {}
+                for name, p in sig_params.items():
+                    # handle arg-like arguments
+                    if p.kind == p.VAR_KEYWORD:
+                        inject_var_kwargs[name] = kwargs[name]
+                    elif p.kind == p.VAR_POSITIONAL:
+                        if len(args) > arg_ptr:
+                            inject_var_args = args[arg_ptr:]
+                    else:  # positional_or_keyword
+                        # args
+                        if p.default is inspect.Parameter.empty:  # args, e.g., `self`
+                            if name not in inject_kwargs:  # reformulate it as kwargs
+                                inject_kwargs[name] = args[arg_ptr]
+                            arg_ptr += 1
+                        else:  # kwargs
+                            # no need to handle kwargs-like arguments
+                            # refill the parameter with `name` and  without passing argument explict with default value
+                            # set default value for this dict-like argument
+                            # if name not in inject_kwargs:
+                            #     inject_kwargs[name] = p.default
+                            pass
+                return functools.partial(f, *inject_var_args, **inject_kwargs, **inject_var_kwargs)()
+            return f(*args, **kwargs)
+
+        return deco
+
+    return decorate
+
+
 if __name__ == '__main__':
     pass
